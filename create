@@ -6,7 +6,6 @@ set -e
 
 
 # ---------------- User configuration ----------------
-${MyVariable:=SomeDefault}
 AZURITE_PUBLIC_KEY="${HOME}/.ssh/id_rsa.pub"
 AZURITE_PREFIX="k8s"
 AZURITE_STATE_STORE="${HOME}/azure-templates"
