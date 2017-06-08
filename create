@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
+
+# Enable expert mode
 set -e
 
-# ---------------- User configuration ----------------
 
+
+# ---------------- User configuration ----------------
+${MyVariable:=SomeDefault}
 AZURITE_PUBLIC_KEY="${HOME}/.ssh/id_rsa.pub"
 AZURITE_PREFIX="k8s"
-AZURITE_TEMPLATE_STORE="${HOME}/azure-templates"
+AZURITE_STATE_STORE="${HOME}/azure-templates"
 AZURITE_LOCATION="eastus"
-
 # ---------------- User configuration ----------------
 
+
+
+
 # Vars
-mkdir -p $AZURITE_TEMPLATE_STORE
+mkdir -p $AZURITE_STATE_STORE
 BIN_DIR=`dirname "$BASH_SOURCE"`
 NAME=$(az account show | jq -r .user.name)
 
@@ -54,7 +60,7 @@ cat ${BIN_DIR}/_kubernetes.json | sed -e "s/password/${SP_PASSWORD}/g" | sed -e 
 ${EDITOR} ${TMP_FILE}
 
 
-cd $AZURITE_TEMPLATE_STORE
+cd $AZURITE_STATE_STORE
 acs-engine generate $TMP_FILE
 
 # Create Resource Group
@@ -66,8 +72,4 @@ ${EDITOR} ${TMP_FILE}
 cat $TMP_FILE > "./_output/${DNS_PREFIX}/azuredeploy.parameters.json"
 
 # Create Deployment
-az group deployment create \
-    --name "${ID}" \
-    --resource-group "${ID}" \
-    --template-file "./_output/${DNS_PREFIX}/azuredeploy.json" \
-    --parameters "@./_output/${DNS_PREFIX}/azuredeploy.parameters.json"
+az group deployment create --name "${ID}" --resource-group "${ID}" --template-file "./_output/${DNS_PREFIX}/azuredeploy.json" --parameters "@./_output/${DNS_PREFIX}/azuredeploy.parameters.json"
