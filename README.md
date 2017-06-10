@@ -1,26 +1,31 @@
 # azurite
 
-This repository is a hodge-podge collection of `bash` glue and ceiling wax that helps me (and nobody else) hack away at Azure.
+Hacky hack hack scripts for Azure, doing it right. (Also my favorite mineral)
 
-There is nothing of importance to be found here.
+### Create a Kubernetes cluster
 
-Go away.
+##### Export subscription ID
 
-This will never be supported.
-
-Ever.
-
-Especially not on Windows.
-
-### Launching A Kubernetes cluster in Azure
-
-```bash
-cd azurite
-export AZURITE_PUBLIC_KEY="${HOME}/.ssh/id_rsa.pub"
-export AZURITE_PREFIX="k8s"
-export AZURITE_STATE_STORE="${HOME}/azure-templates"
-export AZURITE_LOCATION="eastus"
-./create
+```
+export AZURE_SUBSCRIPTION_ID=12345678-9abc-def0-81d5-312a06f2ffca
 ```
 
+##### Create a Kubernetes cluster
 
+```
+./create <optional_cluster_name>
+```
+
+You can specify a name for the cluster if you want, or it will generate a random name for you
+
+##### Editing your cluster config
+
+By default your cluster config should need no changes to work, but you are welcome to specify anything you wish at this time.
+
+##### Accessing your cluster
+
+The cluster `config` will automatically be *appended* to `~/.kube/config`
+
+```
+kubectl get no
+```

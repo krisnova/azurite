@@ -19,7 +19,7 @@
       }
     ],
     "linuxProfile": {
-      "adminUsername": "azureuser",
+      "adminUsername": "user",
       "ssh": {
         "publicKeys": [
           {

@@ -1,24 +1,25 @@
 #!/usr/bin/env bash
+# TODO Run this in a container <3
 
 # Enable expert mode
 set -e
 
-
-
+# TODO Make these default if not already exported
 # ---------------- User configuration ----------------
-AZURITE_PUBLIC_KEY="${HOME}/.ssh/id_rsa.pub"
-AZURITE_PREFIX="k8s"
-AZURITE_STATE_STORE="${HOME}/azure-templates"
-AZURITE_LOCATION="eastus"
+output=${1-text}
+KAZ_PUBLIC_KEY=${KAZ_PUBLIC_KEY-"${HOME}/.ssh/id_rsa.pub"}
+KAZ_STATE_STORE=${KAZ_STATE_STORE-"${HOME}/azure-templates"}
+KAZ_LOCATION=${KAZ_LOCATION-"eastus"}
+KAZ_USER=${KAZ_USER-"azureuser"}
+KAZ_LOG=${KAZ_LOG="${HOME}/.azurite/azurite.log"}
 # ---------------- User configuration ----------------
-
-
-
 
 # Vars
-mkdir -p $AZURITE_STATE_STORE
-BIN_DIR=`dirname "$BASH_SOURCE"`
+mkdir -p $KAZ_STATE_STORE &>/dev/null
+DIR=`dirname "$BASH_SOURCE"`
 NAME=$(az account show | jq -r .user.name)
+mkdir -p $(dirname $KAZ_LOG) &>/dev/null
+touch $KAZ_LOG &>/dev/null
 
 # Validate
 if [ -z $NAME ]; then
@@ -31,44 +32,71 @@ if [ -z $AZURE_SUBSCRIPTION_ID ]; then
     exit 1
 fi
 
+# ID
+if [ -z "$1" ]; then
+    RANDOM_WORD1=$(curl -s http://setgetgo.com/randomword/get.php)
+    RANDOM_WORD2=$(curl -s http://setgetgo.com/randomword/get.php)
+    DNS_PREFIX=k8s-${RANDOM_WORD1}-${RANDOM_WORD2}
+else
+    DNS_PREFIX=$1
+fi
+
 # Begin Kubernetes
-echo "Creating a new Kubernetes cluster for [${NAME}]"
+echo ""
+echo "-----------------------------------------------------------"
+echo "Azure Account : ${NAME}"
+echo "Cluster       : ${DNS_PREFIX}"
+echo "Location      : ${KAZ_LOCATION}"
+echo "User          : ${KAZ_USER}"
+echo "Public Key    : ${KAZ_PUBLIC_KEY}"
+echo "State Store   : ${KAZ_STATE_STORE}"
+echo "-----------------------------------------------------------"
+echo ""
+echo ""
+echo "Preparing cluster configuration to edit in [${EDITOR}]"
+echo ""
+echo ""
 
 # Service Principle Hackery
-
 SPJSON=$(az ad sp create-for-rbac --role="Contributor" --scopes="/subscriptions/${AZURE_SUBSCRIPTION_ID}")
-#SPJSON=$(cat $BIN_DIR/_sp.json)
-
 SP_APP_ID=$(echo ${SPJSON} | jq  -r .appId)
 SP_NAME=$(echo ${SPJSON} | jq  -r .name)
 SP_PASSWORD=$(echo ${SPJSON} | jq  -r .password)
 SP_TENANT=$(echo ${SPJSON} | jq  -r .tenant)
 
-# Generate ID
-TMP_FILE=$(mktemp)
-ID=$(md5sum ${TMP_FILE} | cut -d " " -f 1)
-echo "ID: [${ID}]"
 
-PUBKEY=$(cat ${AZURITE_PUBLIC_KEY})
-RANDOM_WORD1=$(curl http://setgetgo.com/randomword/get.php)
-RANDOM_WORD2=$(curl http://setgetgo.com/randomword/get.php)
-DNS_PREFIX=${AZURITE_PREFIX}-${RANDOM_WORD1}-${RANDOM_WORD2}
+TMP_FILE=$(mktemp)
+PUBKEY=$(cat ${KAZ_PUBLIC_KEY})
+
 
 # Edit Template
-cat ${BIN_DIR}/_kubernetes.json | sed -e "s/password/${SP_PASSWORD}/g" | sed -e "s/appid/${SP_APP_ID}/g" | sed -e "s|pubkey|${PUBKEY}|g" | sed -e "s/prefix/${DNS_PREFIX}/g" > ${TMP_FILE}
+cat ${DIR}/kubernetes.json | sed -e "s/password/${SP_PASSWORD}/g" | sed -e "s/appid/${SP_APP_ID}/g" | sed -e "s/user/${KAZ_USER}/g" | sed -e "s|pubkey|${PUBKEY}|g" | sed -e "s/prefix/${DNS_PREFIX}/g" > ${TMP_FILE}
 ${EDITOR} ${TMP_FILE}
 
-
-cd $AZURITE_STATE_STORE
+# Generate Template
+cd $KAZ_STATE_STORE
 acs-engine generate $TMP_FILE
 
 # Create Resource Group
-az group create --name "${ID}" --location  "${AZURITE_LOCATION}"
+az group create --name "${DNS_PREFIX}" --location  "${KAZ_LOCATION}" &>$KAZ_LOG
 
+# Params
 TMP_FILE=$(mktemp)
 cat "./_output/${DNS_PREFIX}/azuredeploy.parameters.json" > $TMP_FILE
 ${EDITOR} ${TMP_FILE}
 cat $TMP_FILE > "./_output/${DNS_PREFIX}/azuredeploy.parameters.json"
 
 # Create Deployment
-az group deployment create --name "${ID}" --resource-group "${ID}" --template-file "./_output/${DNS_PREFIX}/azuredeploy.json" --parameters "@./_output/${DNS_PREFIX}/azuredeploy.parameters.json"
+az group deployment create --name "${DNS_PREFIX}" --resource-group "${DNS_PREFIX}" --template-file "./_output/${DNS_PREFIX}/azuredeploy.json" --parameters "@./_output/${DNS_PREFIX}/azuredeploy.parameters.json" &>$KAZ_LOG
+
+# Kube config
+scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null ${KAZ_USER}@${DNS_PREFIX}.${KAZ_LOCATION}.cloudapp.azure.com:.kube/config /tmp/kubeconfig > ${KAZ_LOG} 2>&1
+cat /tmp/kubeconfig >> ~/.kube/config
+
+echo ""
+echo "----------------------------------------------------------------------------------------------------------------------"
+echo "Kubernetes Cluster    : ${DNS_PREFIX}"
+echo "Azure Resource Group  : ${DNS_PREFIX}"
+echo "SSH into your cluster : ssh -i ${KAZ_PUBLIC_KEY%.pub}@${DNS_PREFIX}.${KAZ_LOCATION}.cloudup.azure.com"
+echo "----------------------------------------------------------------------------------------------------------------------"
+echo ""
