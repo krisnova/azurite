@@ -4,6 +4,14 @@ Hacky hack hack scripts for Azure, doing it right. (Also my favorite mineral)
 
 ### Create a Kubernetes cluster
 
+##### Install jq
+
+Use your platform's package manager to install jq.  e.g.:
+
+```
+sudo apt-get install jq
+```
+
 ##### Export subscription ID
 
 ```
